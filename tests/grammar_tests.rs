@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use pest::Parser;
-use firewall_parser::{FirewallGrammar, Rule};
+use ufw_rule_parser::{FirewallGrammar, Rule};
 
 #[test]
 fn action_parses_valid_values() -> Result<()> {
@@ -65,6 +65,13 @@ fn port_clause_parses_number() -> Result<()> {
 }
 
 #[test]
+fn port_number_accepts_digits_only() -> Result<()> {
+    let mut ok = FirewallGrammar::parse(Rule::port_number, "65535")?;
+    assert_eq!(ok.next().unwrap().as_str(), "65535");
+    Ok(())
+}
+
+#[test]
 fn proto_clause_parses_values() -> Result<()> {
     for text in ["proto tcp", "proto udp", "proto any"] {
         let mut pairs = FirewallGrammar::parse(Rule::proto_clause, text)?;
@@ -111,5 +118,59 @@ allow ssh
     let pair = pairs.next().ok_or_else(|| anyhow!("no pair"))?;
     assert_eq!(pair.as_rule(), Rule::file);
 
+    Ok(())
+}
+
+#[test]
+fn ident_parses_letters_numbers_and_dashes() -> Result<()> {
+    let mut pair = FirewallGrammar::parse(Rule::ident, "ssh-service1")?;
+    assert_eq!(pair.next().unwrap().as_str(), "ssh-service1");
+    Ok(())
+}
+
+#[test]
+fn ip_parses_ipv4_and_cidr() -> Result<()> {
+    let mut ipv4 = FirewallGrammar::parse(Rule::ip, "192.168.0.1")?;
+    assert_eq!(ipv4.next().unwrap().as_str(), "192.168.0.1");
+
+    let mut cidr = FirewallGrammar::parse(Rule::ip, "192.168.0.0/24")?;
+    assert_eq!(cidr.next().unwrap().as_str(), "192.168.0.0/24");
+    Ok(())
+}
+
+#[test]
+fn interface_clause_parses_identifier() -> Result<()> {
+    let mut pairs = FirewallGrammar::parse(Rule::interface_clause, "on eth0")?;
+    assert_eq!(pairs.next().unwrap().as_str(), "on eth0");
+    Ok(())
+}
+
+#[test]
+fn from_clause_requires_address() -> Result<()> {
+    let mut pairs = FirewallGrammar::parse(Rule::from_clause, "from internal")?;
+    assert_eq!(pairs.next().unwrap().as_str(), "from internal");
+
+    let err = FirewallGrammar::parse(Rule::from_clause, "from");
+    assert!(err.is_err());
+    Ok(())
+}
+
+#[test]
+fn to_clause_accepts_keywords() -> Result<()> {
+    let mut pairs = FirewallGrammar::parse(Rule::to_clause, "to any")?;
+    assert_eq!(pairs.next().unwrap().as_str(), "to any");
+    Ok(())
+}
+
+#[test]
+fn comment_rule_tracks_text_until_newline() -> Result<()> {
+    FirewallGrammar::parse(Rule::COMMENT, "# allow https traffic")?;
+    Ok(())
+}
+
+#[test]
+fn line_rule_handles_rule_and_comment_only_lines() -> Result<()> {
+    FirewallGrammar::parse(Rule::line, "allow ssh # fast path")?;
+    FirewallGrammar::parse(Rule::line, "# full comment line")?;
     Ok(())
 }

@@ -1,7 +1,7 @@
 use anyhow::Result;
 
-use firewall_parser::{
-    parse_rules, Action, Address, AddressRule, Direction, FirewallRule, Protocol, ServiceRule,
+use ufw_rule_parser::{
+    Action, Address, AddressRule, Direction, FirewallRule, Protocol, ServiceRule, parse_rules,
 };
 
 #[test]
@@ -49,4 +49,3 @@ deny out to 8.8.8.8 port 53 proto udp
 
     Ok(())
 }
-

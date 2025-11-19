@@ -1,12 +1,12 @@
-# firewall-parser
+# ufw-firewall-parser
 
-firewall-parser is a parser for a small ufw-like firewall rule language.  
+ufw-firewall-parser is a parser for a small ufw-like firewall rule language.  
 it uses the pest parsing library and a custom grammar defined in grammar.pest.
 it supports address-based rules, service-based rules, and special address keywords such as internal and external.
 
 ## example rules
 allow ssh
-allow in from internal to external port 443 proto tcp
+allow in on eth0 from internal to external port 443 proto tcp
 deny out to 8.8.8.8 port 53 proto udp
 
 ## project structure

@@ -1,12 +1,18 @@
 [package]
-name = "firewall-parser"
+name = "ufw-rule-parser"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "parser for a ufw-like firewall rule, including internal/external address keywords."
 readme = "README.md"
+homepage = "https://github.com/dddd/firewall-parser"
+repository = "https://github.com/dddd/firewall-parser"
+keywords = ["firewall", "parser", "ufw", "pest", "cli"]
+categories = ["command-line-utilities", "network-programming"]
 
 [dependencies]
 anyhow = "1.0.100"
 pest = "2.8.3"
 pest_derive = "2.8.3"
+clap = { version = "4.5.17", features = ["derive"] }
+thiserror = "2.0.3"
