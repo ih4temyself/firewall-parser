@@ -1,6 +1,5 @@
 use anyhow::Result;
-use pest::Parser;
-use firewall_parser::{FirewallGrammar, Rule};
+use firewall_parser::parse_rules;
 
 fn main() -> Result<()> {
     let inp = r#"
@@ -9,8 +8,8 @@ fn main() -> Result<()> {
 	deny out to 8.8.8.8 port 53 proto udp
 	"#;
 
-    let pairs = FirewallGrammar::parse(Rule::file, inp)?;
-    println!("{:#?}", pairs);
+    let rules = parse_rules(inp)?;
+    println!("{rules:#?}");
 
     Ok(())
 }
