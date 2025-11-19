@@ -4,6 +4,9 @@ ufw-rule-parser is a parser for a small ufw-like firewall rule language.
 it uses the pest parsing library and a custom grammar defined in grammar.pest.  
 it supports address-based rules, service-based rules, and special address keywords such as internal and external.
 
+## crates.io link
+https://crates.io/crates/ufw-rule-parser
+
 ## example rules
 
 ```
