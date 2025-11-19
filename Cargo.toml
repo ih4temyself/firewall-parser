@@ -1,0 +1,12 @@
+[package]
+name = "firewall-parser"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "parser for a ufw-like firewall rule, including internal/external address keywords."
+readme = "README.md"
+
+[dependencies]
+anyhow = "1.0.100"
+pest = "2.8.3"
+pest_derive = "2.8.3"

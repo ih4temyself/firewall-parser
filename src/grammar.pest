@@ -1,0 +1,39 @@
+WHITESPACE = _{ " " | "\t" }
+NEWLINE    = _{ "\r\n" | "\n" }
+COMMENT    = _{ "#" ~ (!NEWLINE ~ ANY)* }
+
+action     = { "allow" | "deny" | "reject" | "limit" }
+direction  = { "in" | "out" }
+
+ident      = @{ (ASCII_ALPHANUMERIC | "_" | "-")+ }
+
+ip         = @{ (ASCII_DIGIT | "." | "/")+ }
+addr       = { "any" | "internal" | "external" | ip }
+
+port_number   = @{ ASCII_DIGIT+ }
+port_clause   = { "port" ~ port_number }
+
+proto         = { "tcp" | "udp" | "any" }
+proto_clause  = { "proto" ~ proto }
+
+interface_clause = { "on" ~ ident }
+from_clause = { "from" ~ addr }
+to_clause   = { "to"   ~ addr }
+
+addr_rule = {
+    action
+    ~ direction?
+    ~ interface_clause?
+    ~ (from_clause | to_clause | port_clause | proto_clause)+
+}
+
+service_rule = {
+    action ~ ident
+}
+
+line = _{
+    (addr_rule | service_rule) ~ COMMENT?
+  | COMMENT
+}
+
+file = { SOI ~ (line? ~ NEWLINE)* ~ EOI }
