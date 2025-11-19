@@ -1,24 +1,30 @@
 use pest::{Parser, iterators::Pair};
 use pest_derive::Parser;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+/// pest parser generated from grammar.pest.
 #[derive(Parser)]
 #[grammar = "./grammar.pest"]
 pub struct FirewallGrammar;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// parsed firewall rule: service or address rule.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum FirewallRule {
+    /// service rule (e.g., allow ssh)
     Service(ServiceRule),
+    /// address rule with optional direction, interface, from/to, port, proto
     Address(AddressRule),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceRule {
     pub action: Action,
     pub service: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddressRule {
     pub action: Action,
     pub direction: Option<Direction>,
@@ -29,7 +35,8 @@ pub struct AddressRule {
     pub proto: Option<Protocol>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Action {
     Allow,
     Deny,
@@ -37,20 +44,23 @@ pub enum Action {
     Limit,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Direction {
     In,
     Out,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Protocol {
     Tcp,
     Udp,
     Any,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value", rename_all = "lowercase")]
 pub enum Address {
     Any,
     Internal,
@@ -74,6 +84,7 @@ impl From<pest::error::Error<Rule>> for ParseError {
     }
 }
 
+/// parses firewall rules file into vector of rules.
 pub fn parse_rules(input: &str) -> ParseResult<Vec<FirewallRule>> {
     let mut file_pairs = FirewallGrammar::parse(Rule::file, input)?;
     let file_pair = file_pairs
@@ -225,22 +236,32 @@ fn parse_port(text: &str) -> ParseResult<u16> {
         .map_err(|_| ParseError::Message(format!("invalid port value: {text}")))
 }
 
+/// grammar rule documentation from grammar.pest.
 pub mod grammar_docs {
+    /// matches spaces and tabs (silent rule).
     pub const WHITESPACE: &str = r#"WHITESPACE = _{ " " | "\t" }"#;
+    /// matches line breaks (silent rule).
     pub const NEWLINE: &str = r#"NEWLINE = _{ "\r\n" | "\n" }"#;
     pub const COMMENT: &str = r##"COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }"##;
     pub const ACTION: &str = r#"action = { "allow" | "deny" | "reject" | "limit" }"#;
+    /// matches direction: in or out.
     pub const DIRECTION: &str = r#"direction = { "in" | "out" }"#;
     pub const IDENT: &str = r#"ident = @{ (ASCII_ALPHANUMERIC | "_" | "-")+ }"#;
+    /// matches ip address or cidr notation.
     pub const IP: &str = r#"ip = @{ (ASCII_DIGIT | "." | "/")+ }"#;
+    /// matches address: any, internal, external, or ip.
     pub const ADDR: &str = r#"addr = { "any" | "internal" | "external" | ip }"#;
+    /// matches port number as digits.
     pub const PORT_NUMBER: &str = r#"port_number = @{ ASCII_DIGIT+ }"#;
     pub const PORT_CLAUSE: &str = r#"port_clause = { "port" ~ port_number }"#;
+    /// matches protocol: tcp, udp, or any.
     pub const PROTO: &str = r#"proto = { "tcp" | "udp" | "any" }"#;
     pub const PROTO_CLAUSE: &str = r#"proto_clause = { "proto" ~ proto }"#;
     pub const INTERFACE_CLAUSE: &str = r#"interface_clause = { "on" ~ ident }"#;
+    /// matches "from" keyword followed by address.
     pub const FROM_CLAUSE: &str = r#"from_clause = { "from" ~ addr }"#;
     pub const TO_CLAUSE: &str = r#"to_clause = { "to" ~ addr }"#;
+    /// matches address rule: action, optional direction/interface, one or more clauses.
     pub const ADDR_RULE: &str = r#"addr_rule = { action ~ direction? ~ interface_clause? ~ (from_clause | to_clause | port_clause | proto_clause)+ }"#;
     pub const SERVICE_RULE: &str = r#"service_rule = { action ~ ident }"#;
     pub const LINE: &str = r#"line = _{ (addr_rule | service_rule) ~ COMMENT? | COMMENT }"#;
