@@ -18,3 +18,18 @@ clap = { version = "4.5.17", features = ["derive"] }
 thiserror = "2.0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+[package.metadata.deb]
+maintainer = "ih4temyself"
+copyright = "2025"
+license-file = ["LICENSE", "4"]
+extended-description = """
+parser for UFW-like firewall rules.
+Includes SBOM and cryptographic signatures for supply chain security.
+"""
+section = "admin"
+priority = "optional"
+assets = [
+    ["target/release/ufw-rule-parser", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/ufw-rule-parser/README", "644"],
+]

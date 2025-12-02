@@ -1,0 +1,142 @@
+name: Enterprise Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'  # Runs when pushing v1.0.0 etc.
+
+permissions:
+  contents: write        # Needed to upload release assets
+  id-token: write        # Needed for attestations
+  attestations: write    # Needed for attestations
+
+jobs:
+  build-sign-publish:
+    name: Build, Sign & Release
+    runs-on: ubuntu-22.04
+
+    env:
+      ARCH: amd64
+      TARGET: x86_64-unknown-linux-gnu
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Build Tools (Deb & SBOM)
+        run: |
+          sudo apt-get update && sudo apt-get install -y dpkg-sig
+          cargo install cargo-deb
+          cargo install cargo-cyclonedx
+
+      - name: Import GPG Key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Build Signed Debian Package
+        run: |
+          set -euo pipefail
+
+          # Build the .deb
+          cargo deb --target ${{ env.TARGET }} --output target/ufw-rule-parser_${{ env.ARCH }}.deb
+          ls -lh target/ufw-rule-parser_${{ env.ARCH }}.deb
+
+          # Sign embedded .deb signature
+          dpkg-sig --sign builder \
+            -k "${{ steps.import_gpg.outputs.keyid }}" \
+            "target/ufw-rule-parser_${{ env.ARCH }}.deb"
+
+          # Verify
+          dpkg-sig --verify "target/ufw-rule-parser_${{ env.ARCH }}.deb"
+
+      - name: Generate & Sign SBOM
+        run: |
+          set -euo pipefail
+          mkdir -p target
+
+          echo "== cargo / cyclonedx versions =="
+          cargo --version || true
+          cargo cyclonedx --version || true
+
+          # Decide workspace flag dynamically
+          if grep -q '^\[workspace\]' Cargo.toml; then
+            SEL="--workspace"
+          else
+            SEL=""
+          fi
+          echo "Using selector: '${SEL:-<none>}'"
+
+          # Try multiple generation modes (some versions differ)
+          set +e
+          echo "Attempt 1: stdout redirection"
+          cargo cyclonedx ${SEL} --format json > target/sbom.json 2> target/sbom.stderr
+          RC=$?
+          if [ $RC -ne 0 ] || [ ! -s target/sbom.json ]; then
+            echo "Attempt 1 failed (rc=$RC or empty). stderr:"
+            sed -n '1,200p' target/sbom.stderr || true
+
+            echo "Attempt 2: write bom.json then move"
+            rm -f bom.json target/bom.json
+            cargo cyclonedx ${SEL} --format json 2> target/sbom.stderr2
+            # Some versions write bom.json in repo root; some in target/
+            if [ -f bom.json ]; then mv -f bom.json target/sbom.json; fi
+            if [ -f target/bom.json ]; then mv -f target/bom.json target/sbom.json; fi
+          fi
+
+          # If still empty, last-ditch: run without --format (older variants)
+          if [ ! -s target/sbom.json ]; then
+            echo "Attempt 3: no --format (fallback)"
+            cargo cyclonedx ${SEL} > target/sbom.json 2> target/sbom.stderr3
+          fi
+          set -e
+
+          # Final sanity check with helpful logs
+          if [ ! -s target/sbom.json ]; then
+            echo "SBOM generation failed. Collected stderr:"
+            for f in target/sbom.stderr target/sbom.stderr2 target/sbom.stderr3; do
+              [ -f "$f" ] && { echo "---- $f ----"; sed -n '1,200p' "$f"; }
+            done
+            exit 1
+          fi
+
+          echo "SBOM created:"
+          ls -lh target/sbom.json
+
+          # Sign SBOM
+          gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+              --pinentry-mode loopback \
+              --detach-sign --armor \
+              --output target/sbom.json.asc target/sbom.json
+
+      - name: Generate & Sign Checksums
+        run: |
+          set -euo pipefail
+          cd target
+          sha256sum "ufw-rule-parser_${{ env.ARCH }}.deb" sbom.json > SHA256SUMS
+          gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+              --pinentry-mode loopback \
+              --detach-sign --armor \
+              --output SHA256SUMS.asc SHA256SUMS
+
+      - name: Generate Artifact Attestations
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            target/ufw-rule-parser_${{ env.ARCH }}.deb
+            target/sbom.json
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/ufw-rule-parser_${{ env.ARCH }}.deb
+            target/sbom.json
+            target/sbom.json.asc
+            target/SHA256SUMS
+            target/SHA256SUMS.asc
