@@ -59,8 +59,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p target
-          cargo cyclonedx --all --format json > target/sbom.json
-          test -f target/sbom.json
+
+          # First, run without redirection (for versions that write bom.json)
+          cargo cyclonedx --all --format json
+
+          # If bom.json exists, move it; otherwise, run again and capture stdout
+          if [ -f bom.json ]; then
+            mv -f bom.json target/sbom.json
+          else
+            cargo cyclonedx --all --format json > target/sbom.json
+          fi
+
+          # Verify it's non-empty (upload rejects 0-byte files)
+          test -s target/sbom.json
+          ls -lh target/sbom.json
+
+          # Sign the SBOM
           gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
               --pinentry-mode loopback \
               --detach-sign --armor \
@@ -70,7 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           cd target
-          sha256sum ufw-rule-parser_${{ env.ARCH }}.deb sbom.json > SHA256SUMS
+          sha256sum "ufw-rule-parser_${{ env.ARCH }}.deb" sbom.json > SHA256SUMS
           gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
               --pinentry-mode loopback \
               --detach-sign --armor \
