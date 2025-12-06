@@ -60,21 +60,55 @@ jobs:
           set -euo pipefail
           mkdir -p target
 
-          # First, run without redirection (for versions that write bom.json)
-          cargo cyclonedx --all --format json
+          echo "== cargo / cyclonedx versions =="
+          cargo --version || true
+          cargo cyclonedx --version || true
 
-          # If bom.json exists, move it; otherwise, run again and capture stdout
-          if [ -f bom.json ]; then
-            mv -f bom.json target/sbom.json
+          # Decide workspace flag dynamically
+          if grep -q '^\[workspace\]' Cargo.toml; then
+            SEL="--workspace"
           else
-            cargo cyclonedx --all --format json > target/sbom.json
+            SEL=""
+          fi
+          echo "Using selector: '${SEL:-<none>}'"
+
+          # Try multiple generation modes (some versions differ)
+          set +e
+          echo "Attempt 1: stdout redirection"
+          cargo cyclonedx ${SEL} --format json > target/sbom.json 2> target/sbom.stderr
+          RC=$?
+          if [ $RC -ne 0 ] || [ ! -s target/sbom.json ]; then
+            echo "Attempt 1 failed (rc=$RC or empty). stderr:"
+            sed -n '1,200p' target/sbom.stderr || true
+
+            echo "Attempt 2: write bom.json then move"
+            rm -f bom.json target/bom.json
+            cargo cyclonedx ${SEL} --format json 2> target/sbom.stderr2
+            # Some versions write bom.json in repo root; some in target/
+            if [ -f bom.json ]; then mv -f bom.json target/sbom.json; fi
+            if [ -f target/bom.json ]; then mv -f target/bom.json target/sbom.json; fi
           fi
 
-          # Verify it's non-empty (upload rejects 0-byte files)
-          test -s target/sbom.json
+          # If still empty, last-ditch: run without --format (older variants)
+          if [ ! -s target/sbom.json ]; then
+            echo "Attempt 3: no --format (fallback)"
+            cargo cyclonedx ${SEL} > target/sbom.json 2> target/sbom.stderr3
+          fi
+          set -e
+
+          # Final sanity check with helpful logs
+          if [ ! -s target/sbom.json ]; then
+            echo "SBOM generation failed. Collected stderr:"
+            for f in target/sbom.stderr target/sbom.stderr2 target/sbom.stderr3; do
+              [ -f "$f" ] && { echo "---- $f ----"; sed -n '1,200p' "$f"; }
+            done
+            exit 1
+          fi
+
+          echo "SBOM created:"
           ls -lh target/sbom.json
 
-          # Sign the SBOM
+          # Sign SBOM
           gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
               --pinentry-mode loopback \
               --detach-sign --armor \
