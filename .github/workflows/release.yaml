@@ -59,14 +59,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p target
-
-          # Generate SBOM directly into target/
-          cargo cyclonedx --all --format json --output target/sbom.json
-
-          # Confirm existence
+          cargo cyclonedx --all --format json > target/sbom.json
           test -f target/sbom.json
-
-          # Sign SBOM
           gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
               --pinentry-mode loopback \
               --detach-sign --armor \
@@ -74,15 +68,13 @@ jobs:
 
       - name: Generate & Sign Checksums
         run: |
-          set -euo pipefail
-          cd target
-
-          sha256sum ufw-rule-parser_${{ env.ARCH }}.deb sbom.json > SHA256SUMS
-
-          gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
-              --pinentry-mode loopback \
-              --detach-sign --armor \
-              --output SHA256SUMS.asc SHA256SUMS
+        set -euo pipefail
+        cd target
+        sha256sum ufw-rule-parser_${{ env.ARCH }}.deb sbom.json > SHA256SUMS
+        gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+            --pinentry-mode loopback \
+            --detach-sign --armor \
+            --output SHA256SUMS.asc SHA256SUMS
 
       - name: Generate Artifact Attestations
         uses: actions/attest-build-provenance@v1
