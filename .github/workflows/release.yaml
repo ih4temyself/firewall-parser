@@ -53,7 +53,7 @@ jobs:
       - name: Generate & Sign SBOM
         run: |
           # Generate SBOM (CycloneDX JSON)
-          cargo cyclonedx --all --format json > target/sbom.json
+          cargo cyclonedx --all --format json
           
           # Sign the SBOM (Detached Signature)
           gpg --batch --yes --passphrase ${{ secrets.GPG_PASSPHRASE }} --pinentry-mode loopback --detach-sign --armor --output target/sbom.json.asc target/sbom.json
