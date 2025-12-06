@@ -68,13 +68,13 @@ jobs:
 
       - name: Generate & Sign Checksums
         run: |
-        set -euo pipefail
-        cd target
-        sha256sum ufw-rule-parser_${{ env.ARCH }}.deb sbom.json > SHA256SUMS
-        gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
-            --pinentry-mode loopback \
-            --detach-sign --armor \
-            --output SHA256SUMS.asc SHA256SUMS
+          set -euo pipefail
+          cd target
+          sha256sum ufw-rule-parser_${{ env.ARCH }}.deb sbom.json > SHA256SUMS
+          gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+              --pinentry-mode loopback \
+              --detach-sign --armor \
+              --output SHA256SUMS.asc SHA256SUMS
 
       - name: Generate Artifact Attestations
         uses: actions/attest-build-provenance@v1
