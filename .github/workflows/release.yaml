@@ -13,7 +13,7 @@ permissions:
 jobs:
   build-sign-publish:
     name: Build, Sign & Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       ARCH: amd64
       TARGET: x86_64-unknown-linux-gnu
