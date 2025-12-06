@@ -42,12 +42,14 @@ jobs:
         run: |
           # Build the .deb
           cargo deb --target ${{ env.TARGET }} --output target/ufw-rule-parser_${{ env.ARCH }}.deb
-          
+          ls -lh target/ufw-rule-parser_${{ env.ARCH }}.deb
           # Sign the .deb internals (Embedded Signature)
-          dpkg-sig -k ${{ steps.import_gpg.outputs.keyid }} --passphrase ${{ secrets.GPG_PASSPHRASE }} --sign builder target/ufw-rule-parser_${{ env.ARCH }}.deb
-          
+          dpkg-sig --sign builder \
+            -k "${{ steps.import_gpg.outputs.keyid }}" \
+            --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+            "target/ufw-rule-parser_${{ env.ARCH }}.deb"          
           # Verify immediately
-          dpkg-sig --verify target/ufw-rule-parser_${{ env.ARCH }}.deb
+          dpkg-sig --verify "target/ufw-rule-parser_${{ env.ARCH }}.deb"
 
       - name: Generate & Sign SBOM
         run: |
